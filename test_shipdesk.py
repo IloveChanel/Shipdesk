@@ -4,8 +4,11 @@ from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
 
+import guide
+import project_check
 import screenshots
 import store
+
 
 class ShipDeskTests(unittest.TestCase):
     def test_compare_and_export(self):
@@ -35,3 +38,48 @@ class ShipDeskTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'pagination host'):
             store.apple_apps('token')
         self.assertEqual(request.call_count, 1)
+
+    def test_folder_scan_reads_bundle_and_product(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'App.pbxproj').write_text(
+                'PRODUCT_BUNDLE_IDENTIFIER = com.example.app;\nMARKETING_VERSION = 1.2.0;\n', encoding='utf-8')
+            (root / 'Pay.swift').write_text('let id = "com.example.monthly"\n', encoding='utf-8')
+            found = project_check.scan_project(root, ['com.example.monthly'])
+            self.assertIn('com.example.app', found['bundles'])
+            self.assertIn('1.2.0', found['versions'])
+            self.assertIn('com.example.monthly', found['products'])
+
+    def test_guide_says_code_when_bundle_differs(self):
+        text = guide.explain({
+            'app': {'name': 'Demo', 'bundleId': 'com.store.app'},
+            'code': {'scanned': 2, 'bundles': {'com.code.app'}, 'versions': set(), 'products': {}},
+            'release': {'id': 'v', 'versionString': '1.0', 'platform': 'IOS', 'appVersionState': 'PREPARE_FOR_SUBMISSION', 'buildId': 'b'},
+            'build': {'processingState': 'VALID'},
+            'locales': [{'locale': 'en-US', 'description': 'Hello', 'keywords': 'demo', 'supportUrl': 'https://example.com', 'sets': [{'screenshots': ['a.png']}]}],
+            'review': {'contactFirstName': 'A', 'contactLastName': 'B', 'contactPhone': '1', 'contactEmail': 'a@b.c'},
+            'subscriptions': [],
+            'product_ids': [],
+        })
+        self.assertIn('YOUR CODE', text)
+        self.assertIn('com.store.app', text)
+        self.assertNotIn('GitHub', text.split('YOUR CODE', 1)[1][:80])
+
+    def test_guide_says_store_when_screenshots_missing(self):
+        text = guide.explain({
+            'app': {'name': 'Demo', 'bundleId': 'com.store.app'},
+            'code': {'scanned': 1, 'bundles': {'com.store.app'}, 'versions': {'1.0'}, 'products': {}},
+            'release': {'id': 'v', 'versionString': '1.0', 'platform': 'IOS', 'appVersionState': 'PREPARE_FOR_SUBMISSION', 'buildId': 'b'},
+            'build': {'processingState': 'VALID'},
+            'locales': [{'locale': 'en-US', 'description': 'Hello', 'keywords': 'demo', 'supportUrl': 'https://example.com', 'sets': []}],
+            'review': {'contactFirstName': 'A', 'contactLastName': 'B', 'contactPhone': '1', 'contactEmail': 'a@b.c'},
+            'subscriptions': [],
+            'product_ids': [],
+        })
+        self.assertIn('APP STORE · en-US has no screenshots.', text)
+        self.assertIn('PASS · Your code uses the same bundle id', text)
+
+    def test_confused_question_uses_the_guide(self):
+        self.assertTrue(guide.wants_guide("I'm not sure how to submit this"))
+        self.assertFalse(guide.wants_guide('Check subscription pricing and offer codes'))
+

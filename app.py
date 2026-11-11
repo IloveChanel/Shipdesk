@@ -10,6 +10,7 @@ import flet as ft
 import ai_help
 import audit
 import billing
+import guide
 import project_check
 import screenshots
 import store
@@ -120,7 +121,8 @@ async def main(page: ft.Page):
             if not line.strip():
                 continue
             marker = line.partition(' · ')[0]
-            color = {'PASS': '#8EE5BC', 'REVIEW': '#FFD298', 'UNVERIFIED': '#FFD298'}.get(marker, TEXT)
+            color = {'PASS': '#8EE5BC', 'REVIEW': '#FFD298', 'UNVERIFIED': '#FFD298',
+                     'YOUR CODE': '#FFB020', 'APP STORE': '#FFD298', 'NOT SURE': '#C7C4BE'}.get(marker, TEXT)
             if line in ('WHAT TO DO NEXT', 'FINDINGS') or line.endswith(' EXPLANATION'):
                 blocks.append(ft.Text(line, size=12, color=ACCENT, weight=ft.FontWeight.BOLD))
             else:
@@ -213,6 +215,8 @@ async def main(page: ft.Page):
             bearer = store.token(*credentials())
             if kind == 'audit':
                 return audit.audit_apple(bearer)
+            if kind == 'guide' or guide.wants_guide(question):
+                return guide.diagnose(app_id, release_id, bearer, folder)
             if not app_id:
                 raise ValueError('Connect Apple and select an app first.')
             if kind == 'versions':
@@ -252,7 +256,7 @@ async def main(page: ft.Page):
 
         await run(report, work, apply if kind == 'versions' else None,
                   name={'audit': 'Account audit', 'versions': 'Release lookup', 'listing': 'Screenshot inspection',
-                        'offers': 'Offer codes', 'verify': 'Verification'}[kind])
+                        'offers': 'Offer codes', 'verify': 'Verification', 'guide': "I'm stuck"}[kind])
 
     def action(kind):
         async def invoke(event):
@@ -329,7 +333,8 @@ async def main(page: ft.Page):
                 button('Subscriptions', fill_prompt('Check subscription pricing and offer codes')),
                 button('Release assets', fill_prompt('Check release and screenshots')),
             ], spacing=7, wrap=True),
-            ft.Row([prompt, button('Paste', paste), button('Run check', action('verify'), True)],
+            ft.Row([prompt, button('Paste', paste), button("I'm stuck", action('guide'), True),
+                    button('Run check', action('verify'))],
                    spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Row([ft.Icon(ft.Icons.FOLDER_OUTLINED, size=16, color=MUTED),
                     ft.Container(content=source, expand=True),

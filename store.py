@@ -129,7 +129,34 @@ def play_listing(package, bearer):
         request(f'{url}/{edit}', bearer, 'DELETE')
 
 
-def apple_subscription_setup(app_id, bearer):
+def apple_app(app_id, bearer):
+    return request(APPLE + f'/v1/apps/{app_id}', bearer)['data']['attributes']
+
+def apple_version_localizations(version_id, bearer):
+    rows = apple_list(f'/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations', bearer)
+    return [{
+        'locale': row['attributes'].get('locale'),
+        'description': (row['attributes'].get('description') or '').strip(),
+        'keywords': (row['attributes'].get('keywords') or '').strip(),
+        'supportUrl': (row['attributes'].get('supportUrl') or '').strip(),
+        'whatsNew': (row['attributes'].get('whatsNew') or '').strip(),
+    } for row in rows]
+
+def apple_review_detail(version_id, bearer):
+    try:
+        data = request(APPLE + f'/v1/appStoreVersions/{version_id}/appStoreReviewDetail', bearer)
+    except RuntimeError as error:
+        if '404' in str(error):
+            return None
+        raise
+    return (data.get('data') or {}).get('attributes')
+
+def apple_build(build_id, bearer):
+    if not build_id:
+        return None
+    data = request(APPLE + f'/v1/builds/{build_id}', bearer)
+    return (data.get('data') or {}).get('attributes') or {}
+
     """Read US price schedules and review metadata for each subscription."""
     for group in apple_list(f'/v1/apps/{app_id}/subscriptionGroups', bearer):
         for subscription in apple_list(f"/v1/subscriptionGroups/{group['id']}/subscriptions", bearer):
