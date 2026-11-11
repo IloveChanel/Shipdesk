@@ -208,6 +208,13 @@ async def main(page: ft.Page):
         app_id, release_id = app.value, version.value
         question = prompt.value or ''
         folder = links.get(app_id)
+        if (kind == 'guide' or guide.wants_guide(question)) and not folder and app_id in apps:
+            found = await asyncio.to_thread(project_check.find_project, apps[app_id].get('bundleId'))
+            if found:
+                links[app_id] = str(found)
+                save('projects.json', links)
+                folder = str(found)
+                sync_source()
         selected_provider = provider.value
         ai_key = (openai.value if selected_provider == 'OpenAI' else gemini.value) or ''
 

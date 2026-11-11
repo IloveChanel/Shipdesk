@@ -52,6 +52,39 @@ def scan_project(folder, apple_ids):
                 evidence.setdefault(item, f'{where}:{line_number}')
     return {'bundles': bundles, 'versions': versions, 'products': evidence, 'scanned': scanned, 'skipped': skipped}
 
+def find_project(bundle_id, roots=None):
+    """Find the local project folder for this App Store bundle id."""
+    if not bundle_id:
+        return None
+    if roots is None:
+        home = Path.home()
+        roots = [home / 'Documents', home / 'Desktop', home / 'source', home / 'repos', Path('D:/')]
+    needles = ('bundleIdentifier', 'PRODUCT_BUNDLE_IDENTIFIER', 'applicationId', '"package"', 'package ')
+    names = {'app.json', 'project.pbxproj', 'build.gradle', 'build.gradle.kts'}
+    for root in roots:
+        root = Path(root)
+        if not root.is_dir():
+            continue
+        for directory, dirs, files in os.walk(root):
+            current = Path(directory)
+            if len(current.relative_to(root).parts) > 3:
+                dirs.clear()
+                continue
+            dirs[:] = sorted(name for name in dirs if name not in SKIP and not name.startswith('.'))
+            for name in files:
+                if name not in names and not name.endswith('.pbxproj'):
+                    continue
+                path = current / name
+                try:
+                    if path.stat().st_size > 1_000_000:
+                        continue
+                    text = path.read_text(encoding='utf-8', errors='replace')
+                except OSError:
+                    continue
+                if bundle_id in text and any(marker in text for marker in needles):
+                    return current
+    return None
+
 def compare_subscriptions(folder, apple_ids):
     found = scan_project(folder, apple_ids)
     evidence = found['products']

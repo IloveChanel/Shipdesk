@@ -50,6 +50,16 @@ class ShipDeskTests(unittest.TestCase):
             self.assertIn('1.2.0', found['versions'])
             self.assertIn('com.example.monthly', found['products'])
 
+    def test_find_project_by_bundle_id(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            app = root / 'Verifyly'
+            app.mkdir()
+            (app / 'app.json').write_text('{"ios":{"bundleIdentifier":"com.verifyly.app"}}', encoding='utf-8')
+            self.assertEqual(project_check.find_project('com.verifyly.app', [root]), app)
+            self.assertIsNone(project_check.find_project('com.other.app', [root]))
+
+
     def test_guide_says_code_when_bundle_differs(self):
         text = guide.explain({
             'app': {'name': 'Demo', 'bundleId': 'com.store.app'},
