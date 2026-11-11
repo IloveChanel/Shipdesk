@@ -109,6 +109,7 @@ async def main(page: ft.Page):
             for title, ok in recent_checks
         ]
     source = ft.Text('No source folder linked', size=13, color=MUTED, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+    folder_path = field('Project folder on this PC', r'D:\VERIFYLY\Verifyly')
     prompt = field('What would you like to verify?', 'Check subscription pricing and offer codes',
                    multiline=True, min_lines=2, max_lines=3, expand=True)
     report = SimpleNamespace(value='Choose an app and run a check.')
@@ -169,12 +170,25 @@ async def main(page: ft.Page):
         return key, (issuer.value or '').strip(), path
 
     def sync_source():
-        source.value = links.get(app.value, '') or 'No source folder linked'
+        linked = links.get(app.value, '')
+        source.value = linked or 'No source folder linked'
+        if linked:
+            folder_path.value = linked
+
+    def remember_folder():
+        if not app.value or app.value in links:
+            return
+        bundle = (apps.get(app.value) or {}).get('bundleId')
+        found = project_check.known_match(bundle)
+        if found:
+            links[app.value] = str(found)
+            save('projects.json', links)
 
     def select_app(event=None):
         versions.clear()
         version.options = []
         version.value = None
+        remember_folder()
         sync_source()
         page.update()
 
@@ -209,7 +223,9 @@ async def main(page: ft.Page):
         question = prompt.value or ''
         folder = links.get(app_id)
         if (kind == 'guide' or guide.wants_guide(question)) and not folder and app_id in apps:
-            found = await asyncio.to_thread(project_check.find_project, apps[app_id].get('bundleId'))
+            found = await asyncio.to_thread(project_check.known_match, apps[app_id].get('bundleId'))
+            if not found:
+                found = await asyncio.to_thread(project_check.find_project, apps[app_id].get('bundleId'))
             if found:
                 links[app_id] = str(found)
                 save('projects.json', links)
@@ -263,7 +279,8 @@ async def main(page: ft.Page):
 
         await run(report, work, apply if kind == 'versions' else None,
                   name={'audit': 'Account audit', 'versions': 'Release lookup', 'listing': 'Screenshot inspection',
-                        'offers': 'Offer codes', 'verify': 'Verification', 'guide': "I'm stuck"}[kind])
+                        'offers': 'Offer codes', 'verify': 'Verification', 'guide': "I'm stuck"}[kind],
+                  licensed=kind != 'guide')
 
     def action(kind):
         async def invoke(event):
@@ -276,6 +293,21 @@ async def main(page: ft.Page):
             key_path.value = files[0].path
             key_id.value = store.apple_key_id(key_path.value) or key_id.value
             page.update()
+
+    async def use_folder(event):
+        app_id = app.value
+        path = (folder_path.value or '').strip()
+        if not app_id:
+            report.value = 'Select Verifyly in the app list first.'
+        elif not Path(path).is_dir():
+            report.value = f'That folder is not on this PC: {path}'
+        else:
+            links[app_id] = path
+            save('projects.json', links)
+            sync_source()
+            report.value = f'Using {path}. Click I\'m stuck.'
+        render_report()
+        page.update()
 
     async def link(event):
         app_id = app.value
@@ -343,6 +375,7 @@ async def main(page: ft.Page):
             ft.Row([prompt, button('Paste', paste), button("I'm stuck", action('guide'), True),
                     button('Run check', action('verify'))],
                    spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([folder_path, button('Use this folder', use_folder, True)], spacing=8),
             ft.Row([ft.Icon(ft.Icons.FOLDER_OUTLINED, size=16, color=MUTED),
                     ft.Container(content=source, expand=True),
                     button('Link folder', link), button('Unlink', unlink)], spacing=8),

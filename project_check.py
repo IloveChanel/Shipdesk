@@ -52,10 +52,36 @@ def scan_project(folder, apple_ids):
                 evidence.setdefault(item, f'{where}:{line_number}')
     return {'bundles': bundles, 'versions': versions, 'products': evidence, 'scanned': scanned, 'skipped': skipped}
 
+CANDIDATES = (
+    Path(r'D:\VERIFYLY\Verifyly'),
+    Path(r'D:\Verifyly'),
+    Path(r'D:\VERIFYLY\Verifyly-clean'),
+)
+
+def known_match(bundle_id, candidates=None):
+    """Check the folders already on this PC before searching the drive."""
+    if not bundle_id:
+        return None
+    for folder in candidates or CANDIDATES:
+        folder = Path(folder)
+        if not folder.is_dir():
+            continue
+        for path in (folder / 'app.json', folder / 'mobile' / 'app.json', folder / 'project.pbxproj'):
+            try:
+                text = path.read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                continue
+            if bundle_id in text and ('bundleIdentifier' in text or 'PRODUCT_BUNDLE_IDENTIFIER' in text or '"package"' in text):
+                return folder
+    return None
+
 def find_project(bundle_id, roots=None):
     """Find the local project folder for this App Store bundle id."""
     if not bundle_id:
         return None
+    found = known_match(bundle_id)
+    if found and roots is None:
+        return found
     if roots is None:
         home = Path.home()
         roots = [home / 'Documents', home / 'Desktop', home / 'source', home / 'repos', Path('D:/')]

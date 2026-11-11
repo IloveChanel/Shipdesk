@@ -59,6 +59,15 @@ class ShipDeskTests(unittest.TestCase):
             self.assertEqual(project_check.find_project('com.verifyly.app', [root]), app)
             self.assertIsNone(project_check.find_project('com.other.app', [root]))
 
+    def test_known_verifyly_folder_wins(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / 'Verifyly'
+            (root / 'mobile').mkdir(parents=True)
+            (root / 'mobile' / 'app.json').write_text(
+                '{"ios":{"bundleIdentifier":"com.verifyly.app"}}', encoding='utf-8')
+            self.assertEqual(project_check.known_match('com.verifyly.app', [root]), root)
+
+
 
     def test_guide_says_code_when_bundle_differs(self):
         text = guide.explain({
