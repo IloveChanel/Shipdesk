@@ -9,6 +9,7 @@ import flet as ft
 
 import ai_help
 import audit
+import billing
 import project_check
 import screenshots
 import store
@@ -128,7 +129,7 @@ async def main(page: ft.Page):
     play_report = field('Google Play findings', multiline=True, read_only=True, expand=True)
     media_report = field('Screenshot results', multiline=True, read_only=True, expand=True)
 
-    async def run(output, work, apply=None, name=None):
+    async def run(output, work, apply=None, name=None, licensed=True):
         nonlocal busy
         if busy:
             return
@@ -138,6 +139,10 @@ async def main(page: ft.Page):
             render_report()
         page.update()
         try:
+            if licensed:
+                details = await asyncio.to_thread(billing.read_subscription, (license_input.value or '').strip())
+                show_subscription(details)
+                billing.require_active(details)
             result = await asyncio.to_thread(work)
             output.value = apply(result) if apply else (
                 result if isinstance(result, str) else json.dumps(result, indent=2))
@@ -192,7 +197,7 @@ async def main(page: ft.Page):
             save('apple.json', dict(zip(('ASC_KEY_ID', 'ASC_ISSUER_ID', 'ASC_KEY_PATH'), config)))
             return 'Select an app and ask ShipDesk a question.'
         status.value = 'Checking connection…'
-        await run(report, work, apply, name='Apple connection')
+        await run(report, work, apply, name='Apple connection', licensed=False)
         if status.value == 'Checking connection…':
             status.value = 'Connection unverified · see report'
             page.update()
@@ -351,10 +356,35 @@ async def main(page: ft.Page):
         navigate('Apple workspace')
         await connect()
 
+    license_input = field('ShipDesk license', read('license.json').get('key', ''), password=True)
+    billing_status = label('Check your purchase date, plan price, and renewal or expiration date.', color=MUTED)
+    manage = ft.TextButton(content='Manage billing', visible=False)
+    subscribe = ft.TextButton(content='Subscribe or renew', url='https://www.thetrendsetteragency.com/shipdesk/')
+
+    def show_subscription(details):
+        billing_status.value = billing.format_subscription(details)
+        portal = details.get('portal_url')
+        manage.url = portal
+        manage.visible = bool(portal)
+        subscribe.visible = not details.get('active') and details.get('status') not in ('past_due', 'unpaid', 'incomplete')
+
+    async def check_subscription(event):
+        license_key = (license_input.value or '').strip()
+        def apply(details):
+            show_subscription(details)
+            try:
+                save('license.json', {'key': license_key})
+            except OSError:
+                return billing_status.value + '\nLicense could not be saved locally.'
+            return billing_status.value
+        await run(billing_status, lambda: billing.read_subscription(license_key), apply, licensed=False)
+
     settings_page = ft.Column([
         card(ft.Row([label('App Store Connect', 20), button('Get API credentials', lambda event: navigate('API setup'))], wrap=True), key_id, issuer,
              ft.Row([key_path, button('Browse', browse_key)], wrap=True),
              button('Connect and open workspace', setup_connect, True)),
+        card(label('Subscription', 20), license_input,
+             ft.Row([button('Verify and save license', check_subscription), manage, subscribe], wrap=True), billing_status),
         card(label('Optional AI explanations', 20), provider, openai, gemini,
              label('Provider keys are held for this session. The selected provider receives your question and store findings.', color=MUTED)),
     ], spacing=16, scroll=ft.ScrollMode.AUTO, expand=True)

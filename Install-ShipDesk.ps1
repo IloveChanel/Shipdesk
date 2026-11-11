@@ -17,7 +17,7 @@ if ($LASTEXITCODE -ne 0) { throw 'ShipDesk desktop dependencies could not be ins
 
 $project = New-Item -ItemType Directory -Path $ProjectPath -Force
 if ($project.FullName -ne $PSScriptRoot) {
-    foreach ($file in @('app.py', 'app_old_tkinter.py', 'audit.py', 'store.py', 'screenshots.py', 'project_check.py', 'ai_help.py')) {
+    foreach ($file in @('app.py', 'billing.py', 'app_old_tkinter.py', 'audit.py', 'store.py', 'screenshots.py', 'project_check.py', 'ai_help.py')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project.FullName -Force
     }
 }
