@@ -176,6 +176,68 @@ class ShipDeskTests(unittest.TestCase):
                 text = guide.diagnose('app1', 'ver1', 'token', folder)
         self.assertIn('verifyly.plus.yearly', text)
         self.assertIn('Change "verifyly.plus.annual" to "verifyly.plus.yearly".', text)
+
+    def test_fake_app_covers_every_error(self):
+        folder = Path(__file__).resolve().parent / 'samples' / 'broken-app'
+        code = project_check.scan_project(folder, ['sample.plus.yearly', 'sample.plus.monthly'])
+        self.assertIn('sample.desk.wrong', code['bundles'])
+        self.assertIn('sample.plus.annual', code['products'])
+        broken = {
+            'app': {'name': 'Sample Desk', 'bundleId': 'sample.desk.app'},
+            'code': code,
+            'product_ids': ['sample.plus.yearly', 'sample.plus.monthly'],
+            'subscriptions': [
+                {'product': 'sample.plus.yearly', 'state': 'MISSING_METADATA', 'price': True},
+                {'product': 'sample.plus.monthly', 'state': 'APPROVED', 'price': False},
+            ],
+            'release': {'id': 'v', 'versionString': '1.0.0', 'platform': 'IOS',
+                        'appVersionState': 'REJECTED', 'buildId': 'b'},
+            'build': {'processingState': 'FAILED'},
+            'locales': [{'locale': 'en-US', 'description': '', 'keywords': '', 'supportUrl': '', 'sets': []}],
+            'review': None,
+        }
+        text = guide.explain(broken)
+        for expected in (
+            'YOUR CODE · The bundle id does not match the App Store.',
+            'YOUR CODE · The version in the project does not match this App Store version.',
+            'Change "sample.plus.annual" to "sample.plus.yearly".',
+            'sample.plus.weekly',
+            'YOUR CODE · Apple rejected the uploaded build.',
+            'APP STORE · Apple rejected this version.',
+            'APP STORE · en-US has no description.',
+            'APP STORE · en-US keywords are empty.',
+            'APP STORE · en-US has no support URL.',
+            'APP STORE · en-US has no screenshots.',
+            'APP STORE · Review contact details are missing.',
+            'APP STORE · Subscription sample.plus.yearly is missing store details.',
+            'APP STORE · Subscription sample.plus.monthly has no US price.',
+            'NOT SURE · Agreements, tax, banking, age rating, and the privacy form.',
+        ):
+            self.assertIn(expected, text, expected)
+        self.assertTrue(guide.problems(text))
+
+        no_build = dict(broken, release={'id': 'v', 'versionString': '1.0.0', 'platform': 'IOS',
+                                          'appVersionState': 'PREPARE_FOR_SUBMISSION', 'buildId': None},
+                        build=None)
+        self.assertIn('APP STORE · This version has no build attached.', guide.explain(no_build))
+        waiting = dict(broken, build={'processingState': 'PROCESSING'},
+                       release=dict(broken['release'], appVersionState='PREPARE_FOR_SUBMISSION'))
+        self.assertIn('APP STORE · The build is still processing.', guide.explain(waiting))
+        invalid = dict(broken, build={'processingState': 'VALID'},
+                       release=dict(broken['release'], appVersionState='INVALID_BINARY'))
+        self.assertIn('YOUR CODE · Apple marked the binary invalid.', guide.explain(invalid))
+        incomplete = dict(broken, review={'contactFirstName': '', 'contactLastName': 'B',
+                                           'contactPhone': '', 'contactEmail': 'a@b.c'})
+        self.assertIn('APP STORE · Review contact is incomplete.', guide.explain(incomplete))
+        demo = dict(broken, review={'contactFirstName': 'A', 'contactLastName': 'B', 'contactPhone': '1',
+                                     'contactEmail': 'a@b.c', 'demoAccountRequired': True, 'demoAccountName': ''})
+        self.assertIn('APP STORE · A demo login is required but empty.', guide.explain(demo))
+        self.assertIn('NOT SURE · Your project folder is not linked.', guide.explain({'app': {}, 'release': None, 'code': None}))
+        self.assertIn('APP STORE · No release is selected.', guide.explain({
+            'app': {'name': 'Sample Desk', 'bundleId': 'sample.desk.app'},
+            'code': code, 'release': None, 'product_ids': [], 'subscriptions': [],
+        }))
+
         step, items = guide.one_step(text)
         self.assertTrue(step.startswith('Step 1 of '))
         self.assertGreaterEqual(len(items), 1)

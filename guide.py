@@ -11,12 +11,19 @@ def wants_guide(question):
     return any(phrase in text for phrase in CONFUSED)
 
 def closest_id(missing, found_ids):
-    if not found_ids:
+    """Match a close id only when it is the same billing period."""
+    def period(value):
+        if 'yearly' in value or 'annual' in value:
+            return 'year'
+        if 'monthly' in value:
+            return 'month'
+        if 'weekly' in value:
+            return 'week'
+        return ''
+    pool = [item for item in found_ids if period(item) and period(item) == period(missing)]
+    if not pool:
         return None
-    best = max(found_ids, key=lambda item: SequenceMatcher(None, missing, item).ratio())
-    if SequenceMatcher(None, missing, best).ratio() < 0.72:
-        return None
-    return best
+    return max(pool, key=lambda item: SequenceMatcher(None, missing, item).ratio())
 
 def code_steps(missing_ids, found):
     """Suggest the exact code change. ShipDesk does not edit the project."""
@@ -101,11 +108,16 @@ def explain(snapshot):
                    f'Apple will sell {shown}. Those exact characters are not in the project folder.',
                    code_steps(missing_in_code, code))
         if extra_in_code:
+            steps = []
+            for item in extra_in_code:
+                where = found.get(item)
+                if where:
+                    steps.append(f'Open {where}.')
+                steps.append(f'Remove "{item}" or create that exact id in App Store Connect.')
+            steps.append('The characters must match. Then click I did this.')
             _steps(lines, 'YOUR CODE · The project asks for subscription ids Apple did not return.',
                    'The App Store record for this app does not list: ' + ', '.join(extra_in_code),
-                   ['Confirm you selected the right app in ShipDesk.',
-                    'In App Store Connect, open Subscriptions and create the missing product, or fix the id in code.',
-                    'The id must match character for character.'])
+                   steps)
         if not apple_ids and not found:
             lines.append('PASS · No subscriptions in the App Store or in this folder. Fine if the app is free.')
 
@@ -137,7 +149,11 @@ def explain(snapshot):
                 'Fix that in the project, archive again, and upload a new build.',
                 'Select the new build on this version.'])
     elif build and build.get('processingState') == 'PROCESSING':
-        lines.append('APP STORE · The build is still processing. Wait until it says Valid, then run this check again.')
+        _steps(lines, 'APP STORE · The build is still processing.',
+               'Apple has the upload. It is not ready.',
+               ['Wait on this version until the build says Valid.',
+                'Do not submit while it says Processing.',
+                'Run this check again.'])
     else:
         lines.append('PASS · A build is attached to this version.')
 
@@ -165,7 +181,11 @@ def explain(snapshot):
                     'Fill Description. Save.',
                     'Run this check again.'])
         if not locale.get('keywords'):
-            lines.append(f'APP STORE · {language} keywords are empty. Open that localization and add keywords, separated by commas.')
+            _steps(lines, f'APP STORE · {language} keywords are empty.',
+                   'Search keywords live on the App Store version, not in the project.',
+                   ['Open the version localization.',
+                    'Add keywords, separated by commas.',
+                    'Save.'])
         if not locale.get('supportUrl'):
             _steps(lines, f'APP STORE · {language} has no support URL.',
                    'Apple requires a support link before you can submit.',
