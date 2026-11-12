@@ -15,19 +15,19 @@ import project_check
 import screenshots
 import store
 
-BG, CARD, TEXT, MUTED, ACCENT = '#0A0A0C', '#16161A', '#FFFFFF', '#B7B4AF', '#FF6B00'
-EDGE = '#2D2D30'
-RADIUS = 10
+BG, CARD, TEXT, MUTED, ACCENT = '#070708', '#121214', '#F4F4F5', '#A1A1AA', '#FF6A1A'
+EDGE = '#2C2C31'
+RADIUS = 12
 
 async def main(page: ft.Page):
     page.title = 'ShipDesk Workspace'
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
     page.padding = 0
-    page.window.width = 1220
-    page.window.height = 750
-    page.window.min_width = 780
-    page.window.min_height = 620
+    page.window.width = 1360
+    page.window.height = 920
+    page.window.min_width = 1100
+    page.window.min_height = 820
     directory = Path(os.environ.get('LOCALAPPDATA') or Path.home()) / 'ShipDesk'
 
     def read(name):
@@ -65,21 +65,20 @@ async def main(page: ft.Page):
     def label(value, size=14, color=TEXT):
         return ft.Text(value, size=size, color=color)
 
-    def surface(content, expand=None, padding=20):
+    def surface(content, expand=None, padding=22):
         return ft.Container(content=content, bgcolor=CARD,
-                            border=ft.Border.all(1, EDGE), border_radius=RADIUS,
-                            shadow=ft.BoxShadow(color='#75000000', blur_radius=14, offset=ft.Offset(0, 4)),
+                            border=ft.Border.all(1, EDGE), border_radius=16,
                             padding=padding, expand=expand)
 
     def card(*controls, expand=None):
-        return surface(ft.Column(list(controls), spacing=12, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH), expand=expand)
+        return surface(ft.Column(list(controls), spacing=14, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH), expand=expand)
 
     def button(title, handler, primary=False):
         return ft.Button(
-            content=title, on_click=handler, color=TEXT,
+            content=title, on_click=handler, color='#1A0902' if primary else TEXT,
             bgcolor=ACCENT if primary else CARD,
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=RADIUS),
+                shape=ft.RoundedRectangleBorder(radius=12),
                 side=ft.BorderSide(1, ACCENT if primary else EDGE),
                 elevation=0,
             ),
@@ -109,7 +108,7 @@ async def main(page: ft.Page):
             for title, ok in recent_checks
         ]
     source = ft.Text('No source folder linked', size=13, color=MUTED, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
-    folder_path = field('Project folder on this PC', r'D:\VERIFYLY\Verifyly')
+    folder_path = field('', r'D:\VERIFYLY\Verifyly', hint_text='D:\\VERIFYLY\\Verifyly')
     prompt = field('What would you like to verify?', 'Check subscription pricing and offer codes',
                    multiline=True, min_lines=2, max_lines=3, expand=True)
     report = SimpleNamespace(value='Choose an app and run a check.')
@@ -125,11 +124,11 @@ async def main(page: ft.Page):
             color = {'PASS': '#8EE5BC', 'REVIEW': '#FFD298', 'UNVERIFIED': '#FFD298',
                      'YOUR CODE': '#FFB020', 'APP STORE': '#FFD298', 'NOT SURE': '#C7C4BE'}.get(marker, TEXT)
             if line.startswith('Step '):
-                blocks.append(ft.Text(line, size=16, color=ACCENT, weight=ft.FontWeight.BOLD))
+                blocks.append(ft.Text(line, size=28, color=ACCENT, weight=ft.FontWeight.BOLD))
             elif line in ('Do this now:', 'Still stuck? Do these in order:', 'WHAT TO DO NEXT', 'FINDINGS') or line.endswith(' EXPLANATION'):
-                blocks.append(ft.Text(line, size=12, color=ACCENT, weight=ft.FontWeight.BOLD))
+                blocks.append(ft.Text(line, size=15, color=ACCENT, weight=ft.FontWeight.BOLD))
             else:
-                blocks.append(ft.Text(line, size=14, color=color, selectable=True))
+                blocks.append(ft.Text(line, size=16, color=color, selectable=True))
         report_feed.controls = blocks
     play_report = field('Google Play findings', multiline=True, read_only=True, expand=True)
     media_report = field('Screenshot results', multiline=True, read_only=True, expand=True)
@@ -404,20 +403,30 @@ async def main(page: ft.Page):
             expand=True,
         ),
         surface(ft.Column([
+            ft.Text('Ask ShipDesk', size=18, color=TEXT, weight=ft.FontWeight.BOLD),
             ft.Row([
-                ft.Text('Ask ShipDesk', size=16, color=TEXT, weight=ft.FontWeight.BOLD),
                 button('Subscriptions', fill_prompt('Check subscription pricing and offer codes')),
                 button('Release assets', fill_prompt('Check release and screenshots')),
-            ], spacing=7, wrap=True),
-            ft.Row([prompt, button('Paste', paste), button("I'm stuck", action('guide'), True),
-                    button('I did this', did_this), button("I can't figure this out", more_help)],
-                   spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ft.Row([folder_path, button('Use this folder', use_folder)], spacing=8),
-            ft.Row([ft.Icon(ft.Icons.FOLDER_OUTLINED, size=16, color=MUTED),
-                    ft.Container(content=source, expand=True),
-                    button('Link folder', link), button('Unlink', unlink)], spacing=8),
-        ], spacing=7, horizontal_alignment=ft.CrossAxisAlignment.STRETCH), padding=14),
-    ], spacing=10, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+            ], spacing=8),
+            prompt,
+            ft.Row([
+                button('Paste', paste),
+                button("I'm stuck", action('guide'), True),
+                button('I did this', did_this),
+                button("I can't figure this out", more_help),
+            ], spacing=8, wrap=True),
+            ft.Text('Project folder', size=13, color=MUTED),
+            folder_path,
+            ft.Row([
+                button('Use this folder', use_folder, True),
+                ft.Icon(ft.Icons.FOLDER_OUTLINED, size=16, color=MUTED),
+                ft.Container(content=source, expand=True),
+                button('Link folder', link),
+                button('Unlink', unlink),
+            ], spacing=8),
+        ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.STRETCH), padding=18),
+    ], spacing=16, expand=True, scroll=ft.ScrollMode.AUTO,
+       horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
     insights = ft.Column([
         card(label('Connected apps', 13, MUTED), apps_total),
         card(label('Session activity', 15), activity),
