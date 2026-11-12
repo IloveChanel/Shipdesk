@@ -68,12 +68,13 @@ def explain(snapshot):
         missing_in_code = sorted(apple_ids - found.keys())
         extra_in_code = sorted(set(found) - apple_ids)
         if missing_in_code:
-            _steps(lines, 'YOUR CODE · The App Store has subscription ids your folder does not mention.',
-                   'Apple will sell these. The app will not find them if the paywall uses a different id. '
-                   + ', '.join(missing_in_code),
-                   ['Open the file ShipDesk names, or search the project for the subscription id.',
-                    'Use the exact id from App Store Connect. Copy it. Do not invent a close name.',
-                    'If the id is built in code at runtime, this check cannot see it. Try a purchase on a device.'])
+            shown = ', '.join(missing_in_code)
+            _steps(lines, 'YOUR CODE · The App Store has a subscription id the project does not.',
+                   f'Apple will sell {shown}. Those exact characters are not in the project folder.',
+                   [f'Search the project folder for {shown}.',
+                    'If the code uses a close name, such as annual instead of yearly, they are not the same id.',
+                    'Change the code to the Apple id, or create that id in App Store Connect.',
+                    'Save, then click I did this.'])
         if extra_in_code:
             _steps(lines, 'YOUR CODE · The project asks for subscription ids Apple did not return.',
                    'The App Store record for this app does not list: ' + ', '.join(extra_in_code),
