@@ -24,8 +24,8 @@ async def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG
     page.padding = 0
-    page.window.width = 1280
-    page.window.height = 860
+    page.window.width = 1220
+    page.window.height = 750
     page.window.min_width = 780
     page.window.min_height = 620
     directory = Path(os.environ.get('LOCALAPPDATA') or Path.home()) / 'ShipDesk'
@@ -125,11 +125,11 @@ async def main(page: ft.Page):
             color = {'PASS': '#8EE5BC', 'REVIEW': '#FFD298', 'UNVERIFIED': '#FFD298',
                      'YOUR CODE': '#FFB020', 'APP STORE': '#FFD298', 'NOT SURE': '#C7C4BE'}.get(marker, TEXT)
             if line.startswith('Step '):
-                blocks.append(ft.Text(line, size=28, color=ACCENT, weight=ft.FontWeight.BOLD))
-            elif line in ('Do this now:', 'Still stuck? Do these in order:') or line.endswith(' EXPLANATION'):
                 blocks.append(ft.Text(line, size=16, color=ACCENT, weight=ft.FontWeight.BOLD))
+            elif line in ('Do this now:', 'Still stuck? Do these in order:', 'WHAT TO DO NEXT', 'FINDINGS') or line.endswith(' EXPLANATION'):
+                blocks.append(ft.Text(line, size=12, color=ACCENT, weight=ft.FontWeight.BOLD))
             else:
-                blocks.append(ft.Text(line, size=18, color=color, selectable=True))
+                blocks.append(ft.Text(line, size=14, color=color, selectable=True))
         report_feed.controls = blocks
     play_report = field('Google Play findings', multiline=True, read_only=True, expand=True)
     media_report = field('Screenshot results', multiline=True, read_only=True, expand=True)
@@ -390,45 +390,45 @@ async def main(page: ft.Page):
     apple_main = ft.Column([
         surface(ft.Column([
             ft.Row([app, version], spacing=12),
+            ft.Row([button('Connect', connect), button('Load releases', action('versions')),
+                    button('Screenshots', action('listing')), button('Offer codes', action('offers')),
+                    button('Audit account', action('audit'))], spacing=7, wrap=True),
             status,
-            ft.Row([
-                button("I'm stuck", action('guide'), True),
-                button('I did this', did_this, True),
-                button("I can't figure this out", more_help),
-            ], spacing=10),
-        ], spacing=12), padding=18),
+        ], spacing=8), padding=14),
         card(
-            ft.Text('Your next step', size=22, color=TEXT, weight=ft.FontWeight.BOLD),
-            ft.Divider(height=1, color=EDGE),
-            report_feed,
+            ft.Row([
+                ft.Text('Verification report', size=18, color=TEXT, weight=ft.FontWeight.BOLD, expand=True),
+                ft.Row([button('Copy', copy), button('Export', export_report)], spacing=7),
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Divider(height=1, color=EDGE), report_feed,
             expand=True,
         ),
         surface(ft.Column([
-            ft.Text('Project folder', size=13, color=MUTED),
-            folder_path,
-            button('Use this folder', use_folder, True),
             ft.Row([
-                ft.Icon(ft.Icons.FOLDER_OUTLINED, size=16, color=MUTED),
-                ft.Container(content=source, expand=True),
-                button('Link folder', link),
-                button('Unlink', unlink),
-            ], spacing=8),
-            ft.Row([
-                button('Connect', connect),
-                button('Load releases', action('versions')),
-                button('Screenshots', action('listing')),
-                button('Offer codes', action('offers')),
-                button('Audit account', action('audit')),
-                button('Copy', copy),
-                button('Export', export_report),
-            ], spacing=8, wrap=True),
-        ], spacing=10), padding=18),
-    ], spacing=14, expand=True, scroll=ft.ScrollMode.AUTO,
-       horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
-    apple_page = apple_main
+                ft.Text('Ask ShipDesk', size=16, color=TEXT, weight=ft.FontWeight.BOLD),
+                button('Subscriptions', fill_prompt('Check subscription pricing and offer codes')),
+                button('Release assets', fill_prompt('Check release and screenshots')),
+            ], spacing=7, wrap=True),
+            ft.Row([prompt, button('Paste', paste), button("I'm stuck", action('guide'), True),
+                    button('I did this', did_this), button("I can't figure this out", more_help)],
+                   spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([folder_path, button('Use this folder', use_folder)], spacing=8),
+            ft.Row([ft.Icon(ft.Icons.FOLDER_OUTLINED, size=16, color=MUTED),
+                    ft.Container(content=source, expand=True),
+                    button('Link folder', link), button('Unlink', unlink)], spacing=8),
+        ], spacing=7, horizontal_alignment=ft.CrossAxisAlignment.STRETCH), padding=14),
+    ], spacing=10, expand=True, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+    insights = ft.Column([
+        card(label('Connected apps', 13, MUTED), apps_total),
+        card(label('Session activity', 15), activity),
+    ], width=190, spacing=10)
+    apple_page = ft.Row([apple_main, insights], spacing=12, expand=True,
+                        vertical_alignment=ft.CrossAxisAlignment.STRETCH)
 
     def fit_workspace(event=None):
-        return
+        insights.visible = (getattr(page, 'width', None) or page.window.width) >= 1180
+        if event is not None:
+            page.update()
 
     page.on_resize = fit_workspace
     fit_workspace()
