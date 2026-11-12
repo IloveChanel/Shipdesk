@@ -212,25 +212,85 @@ def explain(snapshot):
     lines.append('4. Those screens are not fully visible to this check. Look at them yourself before you submit.')
     return '\n'.join(lines)
 
+def problems(text):
+    """Split a check into one confirmable problem at a time."""
+    items = []
+    current = None
+
+    def close():
+        nonlocal current
+        if current and current['steps']:
+            items.append(current)
+        current = None
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        head, _, title = line.partition(' · ')
+        if head in ('YOUR CODE', 'APP STORE', 'NOT SURE') and title:
+            close()
+            current = {'where': head, 'title': title, 'detail': '', 'steps': []}
+            continue
+        if line.startswith('PASS') or line.startswith('SHIPDESK') or line.startswith('Step '):
+            close()
+            continue
+        if current is None:
+            continue
+        if line.startswith('How to fix'):
+            continue
+        number, _, rest = line.partition('. ')
+        if number.isdigit() and rest:
+            current['steps'].append(rest)
+        elif not current['detail']:
+            current['detail'] = line
+    close()
+    return items
+
+def one_step(text, index=0, help_open=False):
+    items = problems(text)
+    if not items:
+        passed = [line for line in text.splitlines() if line.startswith('PASS')]
+        body = 'Nothing to fix from this check.'
+        if passed:
+            body += '\n' + '\n'.join(passed)
+        return body, items
+    index = max(0, min(index, len(items) - 1))
+    item = items[index]
+    where = {
+        'YOUR CODE': 'This one is your code.',
+        'APP STORE': 'This one is the App Store. Your code is not the problem.',
+        'NOT SURE': 'ShipDesk cannot see this screen. You have to look.',
+    }[item['where']]
+    lines = [f'Step {index + 1} of {len(items)}', where, item['title']]
+    if item['detail']:
+        lines.append(item['detail'])
+    lines.extend(['', 'Do this now:', item['steps'][0]])
+    if help_open:
+        lines.extend(['', 'Still stuck? Do these in order:'])
+        lines.extend(f'{number}. {step}' for number, step in enumerate(item['steps'], 1))
+    else:
+        lines.extend(['', 'When that is done, click I did this.', 'If you are lost, click I can\'t figure this out.'])
+    return '\n'.join(lines), items
+
 def diagnose(app_id, version_id, bearer, folder):
     if not app_id:
         return explain({'app': {}, 'release': None, 'code': None})
     app = store.apple_app(app_id, bearer)
     releases = store.apple_releases(app_id, bearer)
     release = next((row for row in releases if row['id'] == version_id), None)
-    if release is None and releases and not version_id:
-        release = None
+    if release is None and releases:
+        release = next((row for row in releases if 'PREPARE' in (row.get('appVersionState') or '')), releases[0])
     locales = []
     review = None
     build = None
     if release:
         locales = store.apple_version_localizations(release['id'], bearer)
-        if version_id:
-            listed = {row['locale']: row for row in store.apple_listing(release['id'], bearer)}
-            for locale in locales:
-                locale['sets'] = (listed.get(locale['locale']) or {}).get('sets') or []
-            review = store.apple_review_detail(release['id'], bearer)
-            build = store.apple_build(release.get('buildId'), bearer)
+        listed = {row['locale']: row for row in store.apple_listing(release['id'], bearer)}
+        for locale in locales:
+            locale['sets'] = (listed.get(locale['locale']) or {}).get('sets') or []
+        review = store.apple_review_detail(release['id'], bearer)
+        build = store.apple_build(release.get('buildId'), bearer)
     products = []
     product_ids = []
     for product, endpoint in store.apple_subscription_setup(app_id, bearer):

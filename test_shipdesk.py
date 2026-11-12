@@ -104,6 +104,30 @@ class ShipDeskTests(unittest.TestCase):
         self.assertTrue(guide.wants_guide("I'm not sure how to submit this"))
         self.assertFalse(guide.wants_guide('Check subscription pricing and offer codes'))
 
+    def test_one_problem_at_a_time(self):
+        text = '\n'.join([
+            'PASS · Bundle matches',
+            'APP STORE · English has no screenshots.',
+            'Upload them in App Store Connect.',
+            'How to fix:',
+            '1. Open this version.',
+            '2. Upload the iPhone screenshot.',
+            'YOUR CODE · The bundle id does not match.',
+            'The folder says com.other.',
+            'How to fix:',
+            '1. Set the bundle id.',
+        ])
+        items = guide.problems(text)
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]['where'], 'APP STORE')
+        shown, _ = guide.one_step(text, 0, False)
+        self.assertIn('Step 1 of 2', shown)
+        self.assertIn('Open this version.', shown)
+        self.assertNotIn('Set the bundle id.', shown)
+        helped, _ = guide.one_step(text, 0, True)
+        self.assertIn('2. Upload the iPhone screenshot.', helped)
+
+
     def test_powershell_check_links_the_folder(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

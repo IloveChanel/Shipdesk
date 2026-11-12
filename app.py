@@ -239,7 +239,12 @@ async def main(page: ft.Page):
             if kind == 'audit':
                 return audit.audit_apple(bearer)
             if kind == 'guide' or guide.wants_guide(question):
-                return guide.diagnose(app_id, release_id, bearer, folder)
+                text = guide.diagnose(app_id, release_id, bearer, folder)
+                coach['full'] = text
+                coach['index'] = 0
+                coach['help'] = False
+                shown, coach['items'] = guide.one_step(text)
+                return shown
             if not app_id:
                 raise ValueError('Connect Apple and select an app first.')
             if kind == 'versions':
@@ -329,6 +334,34 @@ async def main(page: ft.Page):
             sync_source()
             page.update()
 
+    coach = {'items': [], 'index': 0, 'help': False, 'full': ''}
+
+    def show_step():
+        report.value = guide.one_step(coach['full'], coach['index'], coach['help'])[0]
+
+    async def did_this(event):
+        if not coach['items']:
+            report.value = 'Click I\'m stuck first.'
+        else:
+            coach['index'] += 1
+            coach['help'] = False
+            if coach['index'] >= len(coach['items']):
+                coach['items'] = []
+                report.value = 'You finished this list.\n\nClick I\'m stuck again. ShipDesk reads the App Store again and tells you if it is fixed.'
+            else:
+                show_step()
+        render_report()
+        page.update()
+
+    async def more_help(event):
+        if not coach['full']:
+            report.value = 'Click I\'m stuck first.'
+        else:
+            coach['help'] = True
+            show_step()
+        render_report()
+        page.update()
+
     async def paste(event):
         text = await clipboard.get()
         if text:
@@ -372,9 +405,10 @@ async def main(page: ft.Page):
                 button('Subscriptions', fill_prompt('Check subscription pricing and offer codes')),
                 button('Release assets', fill_prompt('Check release and screenshots')),
             ], spacing=7, wrap=True),
-            ft.Row([prompt, button('Paste', paste), button("I'm stuck", action('guide'), True),
-                    button('Run check', action('verify'))],
+            ft.Row([prompt, button('Paste', paste), button("I'm stuck", action('guide'), True)],
                    spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([button('I did this', did_this, True), button("I can't figure this out", more_help),
+                    button('Run check', action('verify'))], spacing=8, wrap=True),
             ft.Row([folder_path, button('Use this folder', use_folder, True)], spacing=8),
             ft.Row([ft.Icon(ft.Icons.FOLDER_OUTLINED, size=16, color=MUTED),
                     ft.Container(content=source, expand=True),
