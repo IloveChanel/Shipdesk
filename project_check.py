@@ -28,7 +28,7 @@ def _walk(folder):
 
 def scan_project(folder, apple_ids):
     """Read the project folder on this computer. No GitHub and no Visual Studio."""
-    bundles, versions, evidence = set(), set(), {}
+    bundles, versions, evidence, snippets = set(), set(), {}, {}
     scanned = skipped = 0
     for root, path in _walk(folder):
         if path.suffix.lower() not in SOURCE_TYPES | EXTRA_TYPES:
@@ -50,7 +50,9 @@ def scan_project(folder, apple_ids):
             candidates.update(item for item in apple_ids if f'"{item}"' in line or f"'{item}'" in line)
             for item in candidates:
                 evidence.setdefault(item, f'{where}:{line_number}')
-    return {'bundles': bundles, 'versions': versions, 'products': evidence, 'scanned': scanned, 'skipped': skipped}
+                snippets.setdefault(item, line.strip())
+    return {'bundles': bundles, 'versions': versions, 'products': evidence,
+            'snippets': snippets, 'scanned': scanned, 'skipped': skipped}
 
 CANDIDATES = (
     Path(r'D:\VERIFYLY\Verifyly'),

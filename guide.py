@@ -1,6 +1,7 @@
 """Tell a new submitter whether the problem is their code or the App Store."""
 import project_check
 import store
+from difflib import SequenceMatcher
 
 CONFUSED = ('not sure', 'confused', "i'm stuck", 'im stuck', 'i am stuck', 'stuck',
             'how do i', 'help me', "what's wrong", 'what is wrong', 'what is broken')
@@ -8,6 +9,33 @@ CONFUSED = ('not sure', 'confused', "i'm stuck", 'im stuck', 'i am stuck', 'stuc
 def wants_guide(question):
     text = (question or '').lower()
     return any(phrase in text for phrase in CONFUSED)
+
+def closest_id(missing, found_ids):
+    if not found_ids:
+        return None
+    best = max(found_ids, key=lambda item: SequenceMatcher(None, missing, item).ratio())
+    if SequenceMatcher(None, missing, best).ratio() < 0.72:
+        return None
+    return best
+
+def code_steps(missing_ids, found):
+    """Suggest the exact code change. ShipDesk does not edit the project."""
+    steps = []
+    snippets = found.get('snippets') or {}
+    products = found.get('products') or {}
+    for missing in missing_ids:
+        near = closest_id(missing, products)
+        if not near:
+            steps.append(f'Add "{missing}" in the file that lists the App Store product ids.')
+            continue
+        where = products[near]
+        steps.append(f'Open {where}.')
+        steps.append(f'Change "{near}" to "{missing}".')
+        line = snippets.get(near, '')
+        if line:
+            steps.append('Suggested line: ' + line.replace(near, missing))
+    steps.append('Save the file. ShipDesk does not change it for you. Then click I did this.')
+    return steps
 
 def _steps(lines, title, detail, steps):
     lines.append(f'\n{title}')
@@ -71,10 +99,7 @@ def explain(snapshot):
             shown = ', '.join(missing_in_code)
             _steps(lines, 'YOUR CODE · The App Store has a subscription id the project does not.',
                    f'Apple will sell {shown}. Those exact characters are not in the project folder.',
-                   [f'Search the project folder for {shown}.',
-                    'If the code uses a close name, such as annual instead of yearly, they are not the same id.',
-                    'Change the code to the Apple id, or create that id in App Store Connect.',
-                    'Save, then click I did this.'])
+                   code_steps(missing_in_code, code))
         if extra_in_code:
             _steps(lines, 'YOUR CODE · The project asks for subscription ids Apple did not return.',
                    'The App Store record for this app does not list: ' + ', '.join(extra_in_code),

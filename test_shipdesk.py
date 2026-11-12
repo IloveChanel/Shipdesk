@@ -175,7 +175,7 @@ class ShipDeskTests(unittest.TestCase):
                  patch('guide.store.apple_us_prices', return_value=iter([('2026-01-01', '79.99', False)])):
                 text = guide.diagnose('app1', 'ver1', 'token', folder)
         self.assertIn('verifyly.plus.yearly', text)
-        self.assertIn('YOUR CODE', text)
+        self.assertIn('Change "verifyly.plus.annual" to "verifyly.plus.yearly".', text)
         step, items = guide.one_step(text)
         self.assertTrue(step.startswith('Step 1 of '))
         self.assertGreaterEqual(len(items), 1)
