@@ -157,7 +157,8 @@ def apple_build(build_id, bearer):
     data = request(APPLE + f'/v1/builds/{build_id}', bearer)
     return (data.get('data') or {}).get('attributes') or {}
 
-    """Read US price schedules and review metadata for each subscription."""
+def apple_subscription_setup(app_id, bearer):
+    """Read each subscription so the check can compare it with the project."""
     for group in apple_list(f'/v1/apps/{app_id}/subscriptionGroups', bearer):
         for subscription in apple_list(f"/v1/subscriptionGroups/{group['id']}/subscriptions", bearer):
             endpoint = f"/v1/subscriptions/{subscription['id']}"

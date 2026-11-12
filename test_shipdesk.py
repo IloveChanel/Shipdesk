@@ -13,6 +13,10 @@ import store
 
 
 class ShipDeskTests(unittest.TestCase):
+    def test_store_exposes_subscription_setup(self):
+        self.assertTrue(callable(store.apple_subscription_setup))
+
+
     def test_compare_and_export(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)
