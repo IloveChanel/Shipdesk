@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
 
+import audit
 import check_project
 import guide
 import project_check
@@ -151,5 +152,63 @@ class ShipDeskTests(unittest.TestCase):
                 linked = check_project.link_store(settings, app, 'com.verifyly.app')
             self.assertIn('app123', json.loads((settings / 'projects.json').read_text()))
             self.assertTrue(linked[0].startswith('PASS'))
+
+    def test_desktop_check_names_the_missing_apple_id(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            (folder / 'store.ts').write_text('export const id = "verifyly.plus.annual"\n', encoding='utf-8')
+            (folder / 'app.json').write_text('{"ios":{"bundleIdentifier":"com.verifyly.app"}}', encoding='utf-8')
+            with patch('guide.store.apple_app', return_value={'name': 'Verifyly', 'bundleId': 'com.verifyly.app'}), \
+                 patch('guide.store.apple_releases', return_value=[{
+                     'id': 'ver1', 'versionString': '1.0', 'platform': 'IOS',
+                     'appVersionState': 'PREPARE_FOR_SUBMISSION', 'buildId': 'build1'}]), \
+                 patch('guide.store.apple_version_localizations', return_value=[{
+                     'locale': 'en-US', 'description': 'Check it', 'keywords': 'scam',
+                     'supportUrl': 'https://verifyly.app', 'whatsNew': ''}]), \
+                 patch('guide.store.apple_listing', return_value=[{'locale': 'en-US', 'sets': [{'screenshots': ['home.png']}]}]), \
+                 patch('guide.store.apple_review_detail', return_value={
+                     'contactFirstName': 'A', 'contactLastName': 'B', 'contactPhone': '1', 'contactEmail': 'a@b.c'}), \
+                 patch('guide.store.apple_build', return_value={'processingState': 'VALID'}), \
+                 patch('guide.store.apple_subscription_setup', return_value=iter([
+                     ({'attributes': {'productId': 'verifyly.plus.yearly', 'state': 'APPROVED'}}, '/v1/subscriptions/sub1')
+                 ])), \
+                 patch('guide.store.apple_us_prices', return_value=iter([('2026-01-01', '79.99', False)])):
+                text = guide.diagnose('app1', 'ver1', 'token', folder)
+        self.assertIn('verifyly.plus.yearly', text)
+        self.assertIn('YOUR CODE', text)
+        step, items = guide.one_step(text)
+        self.assertTrue(step.startswith('Step 1 of '))
+        self.assertGreaterEqual(len(items), 1)
+
+    def test_billing_accepts_an_active_license(self):
+        import billing
+        payload = {'active': True, 'status': 'active', 'amount': 3900, 'currency': 'usd',
+                   'interval': 'year', 'purchased_at': 1700000000, 'period_end': 1730000000}
+        billing.require_active(payload)
+        text = billing.format_subscription(payload)
+        self.assertIn('Status · Active', text)
+        self.assertIn('39.00 USD', text)
+        with self.assertRaisesRegex(ValueError, 'license'):
+            billing.read_subscription('')
+
+    def test_audit_question_and_screenshot_size(self):
+        with patch('audit.store.apple_subscription_setup', return_value=[]), \
+             patch('audit.store.apple_offers', return_value=[]):
+            text = audit.verify_request('Check subscription pricing', 'app1', None, 'token')
+        self.assertIn('REVIEW', text)
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)
+            png = b'\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x02\x00\x00\x00\x03'
+            (path / 'home.png').write_bytes(png)
+            self.assertIn('RESIZE', screenshots.check_size(path, (1290, 2796)))
+        self.assertEqual(store.apple_key_id(r'C:\keys\AuthKey_ABCDE12345.p8'), 'ABCDE12345')
+
+    def test_every_desktop_module_imports(self):
+        import ai_help
+        import audit
+        import billing
+        modules = (ai_help, audit, billing, check_project, guide, project_check, screenshots, store)
+        self.assertTrue(all(module.__doc__ for module in modules))
+
 
 
