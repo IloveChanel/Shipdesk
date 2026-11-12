@@ -16,9 +16,11 @@ if (-not $pythonPath) { throw 'Install Python 3 with Tkinter, then run this setu
 if ($LASTEXITCODE -ne 0) { throw 'ShipDesk desktop dependencies could not be installed.' }
 
 $project = New-Item -ItemType Directory -Path $ProjectPath -Force
-if ($project.FullName -ne $PSScriptRoot) {
-    foreach ($file in @('app.py', 'billing.py', 'app_old_tkinter.py', 'audit.py', 'store.py', 'screenshots.py', 'project_check.py', 'ai_help.py')) {
-        Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $project.FullName -Force
+if ((Test-Path -LiteralPath (Join-Path $project.FullName '.git'))) {
+    Write-Host "$($project.FullName) is the git copy. Setup will not overwrite those files."
+} elseif ($project.FullName -ne $PSScriptRoot) {
+    Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.py' | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $project.FullName -Force
     }
 }
 $launcher = Join-Path (Split-Path -Parent $pythonPath) 'pythonw.exe'

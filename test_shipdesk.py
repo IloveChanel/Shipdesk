@@ -1,9 +1,11 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
 from zipfile import ZipFile
 
+import check_project
 import guide
 import project_check
 import screenshots
@@ -101,4 +103,25 @@ class ShipDeskTests(unittest.TestCase):
     def test_confused_question_uses_the_guide(self):
         self.assertTrue(guide.wants_guide("I'm not sure how to submit this"))
         self.assertFalse(guide.wants_guide('Check subscription pricing and offer codes'))
+
+    def test_powershell_check_links_the_folder(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            app = root / 'Verifyly'
+            (app / 'mobile').mkdir(parents=True)
+            (app / 'mobile' / 'app.json').write_text(
+                '{"ios":{"bundleIdentifier":"com.verifyly.app"}}', encoding='utf-8')
+            (app / 'Pay.swift').write_text('let id = "verifyly.plus.monthly"\n', encoding='utf-8')
+            lines = check_project.local_report(app, 'com.verifyly.app')
+            self.assertTrue(lines[0].startswith('PASS'))
+            self.assertTrue(any('com.verifyly.app is in this folder' in line for line in lines))
+            settings = root / 'settings'
+            with patch('check_project.store.apple_apps', return_value=[
+                {'id': 'app123', 'attributes': {'name': 'Verifyly', 'bundleId': 'com.verifyly.app'}}
+            ]), patch('check_project.store.token', return_value='token'), patch(
+                'check_project.load_saved', return_value=('KEY', '', 'key.p8')):
+                linked = check_project.link_store(settings, app, 'com.verifyly.app')
+            self.assertIn('app123', json.loads((settings / 'projects.json').read_text()))
+            self.assertTrue(linked[0].startswith('PASS'))
+
 

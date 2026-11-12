@@ -8,7 +8,7 @@ EXTRA_TYPES = {'.plist', '.gradle', '.pbxproj', '.json', '.xml'}
 SKIP = {'.git', 'node_modules', 'build', 'dist', 'Pods', 'vendor', 'DerivedData'}
 PRODUCT = re.compile(r"""["']([A-Za-z0-9][A-Za-z0-9_.-]*(?:monthly|annual|yearly|weekly)[A-Za-z0-9_.-]*)["']""", re.I)
 BUNDLE = re.compile(
-    r'(?:PRODUCT_BUNDLE_IDENTIFIER|applicationId|package)\s*[=:]\s*["\']?([A-Za-z][\w-]*(?:\.[A-Za-z][\w-]*)+)',
+    r"""['"]?(?:PRODUCT_BUNDLE_IDENTIFIER|bundleIdentifier|applicationId|package)['"]?\s*[=:]\s*['"]?([A-Za-z][\w.-]+)"""
 )
 VERSION = re.compile(
     r'(?:MARKETING_VERSION|CFBundleShortVersionString|versionName)\s*[=:]\s*["\']?(\d+\.\d+(?:\.\d+)?)',
